@@ -1,0 +1,3 @@
+./ps/build 编译
+./ps/log   编译运行 并输出到log/logdd-hh-mm-ss.txt
+./ps/build 编译运行 并输出到控制台

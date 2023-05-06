@@ -1,0 +1,10 @@
+^D:\BISHE\GPU-DATABASE\BUILD\CMAKEFILES\C749AD149364A36EA88895D79C8A2345\GENERATE.STAMP.RULE
+setlocal
+D:\CMake\bin\cmake.exe -SD:/bishe/gpu-database -BD:/bishe/gpu-database/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/bishe/gpu-database/build/gpu-database.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
