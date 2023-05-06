@@ -1,2 +1,5 @@
 log/*.txt
-build/*
+build/**
+.VSCodeCounter/**
+trash/**
+gpu-database.code-workspace

@@ -1,3 +1,4 @@
-./ps/build 编译
-./ps/log   编译运行 并输出到log/logdd-hh-mm-ss.txt
-./ps/build 编译运行 并输出到控制台
+.\ps\cmake.ps1  构建
+.\ps\build.ps1  编译
+.\ps\log.ps1    编译运行 并输出到log/logdd-hh-mm-ss.txt
+.\ps\run.ps1    编译运行 并输出到控制台
