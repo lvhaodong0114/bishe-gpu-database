@@ -5,6 +5,11 @@ echo $p
 if( $p -eq 'clean'){
     remove-item ./log/* 
 }
+
+if(-not (test-path ./log)){
+    mkdir log
+}
+
 cmake --build ./build
 
 $value = $LASTEXITCODE
