@@ -1,0 +1,1 @@
+start powershell D:\bishe\gpu-database\ps\nvidia.ps1

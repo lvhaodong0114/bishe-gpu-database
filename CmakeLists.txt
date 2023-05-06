@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.1)
+set (CMAKE_CXX_STANDARD 14)
+
+project(gpu-database LANGUAGES CXX CUDA)
+find_package(CUDA REQUIRED)
+# set(CUDA_NVCC_FLAGS  -arch=compute_30;-rdc=true)
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-rdc=true;-lcudadevrt")
+
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+# set_target_properties(gpu-database PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+SET(CMAKE_BUILD_TYPE Release)
+
+
+message(${CMAKE_BUILD_TYPE} )
+# set(CMAKE_EXE_LINKER_FLAGS /NODEFAULTLIB:"MSVCRT.lib")
+
+
+
+file(GLOB srcfiles 
+${PROJECT_SOURCE_DIR}/src/*.h   
+${PROJECT_SOURCE_DIR}/src/*.cu
+)
+
+
+include_directories(${PROJECT_SOURCE_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/src/database)
+include_directories(${PROJECT_SOURCE_DIR}/src/database/common)
+include_directories(${PROJECT_SOURCE_DIR}/src/cuda)
+
+
+add_executable(gpu-database ${srcfiles})
+message(${srcfiles})
+# target_link_libraries(gpu_aria PUBLIC stdgpu::stdgpu)
