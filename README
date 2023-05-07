@@ -1,3 +1,10 @@
+init project:
+    .\ps\cmake.ps1
+    .\ps\build.ps1
+
+
+
+ps:
 .\ps\cmake.ps1  构建
 .\ps\build.ps1  编译
 .\ps\log.ps1    编译运行 并输出到log/logdd-hh-mm-ss.txt

@@ -47,6 +47,9 @@ class DB  :public database{
                     Value v;
                     v.generate();
                     table_ptr->insert((void*)&k,(void*)&v);
+                    if(i%10==0){
+                        table_ptr->delete_((void*)&k,(void*)&v);
+                    }
                 }
             }
             printf("<DB INFO>:                   init successful!\n");

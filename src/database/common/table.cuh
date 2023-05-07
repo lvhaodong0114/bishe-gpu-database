@@ -24,6 +24,9 @@ class ITable{
 
     __host__ __device__ virtual void update(const void *key, const void *value)= 0;
 
+    __host__ __device__ virtual void delete_(const void *key, const void *value)= 0;
+
+
     __host__ __device__ virtual int get_size() = 0;
 
                         virtual void* get_map_ptr() =0;
@@ -96,6 +99,10 @@ public:
 
     __host__ __device__ void update(const void *key, const void *value){
 
+    };
+
+    __host__ __device__ void delete_(const void *key, const void *value){
+        map._delete(*(KeyType*)key);
     };
 
     __host__ __device__ int get_size(){

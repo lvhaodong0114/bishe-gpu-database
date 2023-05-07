@@ -32,7 +32,7 @@ int main(){
 
     db.init_db();
     Timer::start_timer();
-    db.init_table(0,0,200000);
+    db.init_table(0,0,50000);
     // db.search_all(0,200000);
     Timer::end_timer();
     Timer::show_during();
@@ -45,16 +45,16 @@ int main(){
 
 
 
-    db.generate_transction(150);
-    db.transction_manager_show();
+//     db.generate_transction(150);
+//     db.transction_manager_show();
     
 
-    Timer::start_timer();
-//    db.test_one_epoch();
-    db.test();
+//     Timer::start_timer();
+// //    db.test_one_epoch();
+//     db.test();
 
-    Timer::end_timer();
-    Timer::show_during();
+//     Timer::end_timer();
+//     Timer::show_during();
 
 
 

@@ -38,14 +38,18 @@ class HashTable{
     using KV = kv<KeyType,ValueType>;
 
     public:
-        HashTable(Gpu_Allocator* allocatorptr,int size=DEAULT_TABLE_SIZE):Size(size),TablePtr(nullptr),ItemNums(0),AllocatorPtr(allocatorptr),state(HASHTABLE_STATE::UNKNOWN){};
+        HashTable(Gpu_Allocator* allocatorptr,int size=DEAULT_TABLE_SIZE):Size(size),TablePtr(nullptr),is_delete_flag(nullptr),ItemNums(0),AllocatorPtr(allocatorptr),state(HASHTABLE_STATE::UNKNOWN){};
         HashTable() = default;
         ~HashTable() {
             if(TablePtr){
-                if(state==HASHTABLE_STATE::ON_HOST)
+                if(state==HASHTABLE_STATE::ON_HOST){
                     free(TablePtr);
-                else if(state==HASHTABLE_STATE::ON_DEVICE)
+                    free(is_delete_flag);                    
+                }
+                else if(state==HASHTABLE_STATE::ON_DEVICE){
                     AllocatorPtr->_cudaFree(TablePtr);
+                    AllocatorPtr->_cudaFree(is_delete_flag);
+                }
             };
         };
 
@@ -63,12 +67,14 @@ class HashTable{
                 Size=size;
                 cudaError_t err;
                 err = AllocatorPtr->_cudaMalloc((void**)&TablePtr,sizeof(KV)*size);
+                err = AllocatorPtr->_cudaMalloc((void**)&is_delete_flag,sizeof(bool)*size);
                 printf("Malloc successfull.\n");
 
                 cudaCheckError(err);
         
                 /* set everything to KEY_INVALID */
                 err =cudaMemset(TablePtr, KEY_INVALID, sizeof(KV)*size);
+                err =cudaMemset(is_delete_flag, 0, sizeof(bool)*size);
                 printf("Malloc successfull.\n");
                 state = HASHTABLE_STATE::ON_DEVICE;
             }else{
@@ -80,8 +86,10 @@ class HashTable{
             if(size>0){
                 Size=size;
                 TablePtr=(KV*)malloc(sizeof(KV)*size);
+                is_delete_flag  = (bool*)malloc(sizeof(bool)*size);
 
                 memset(TablePtr,KEY_INVALID,sizeof(KV)*size);
+                memset(is_delete_flag,0,sizeof(bool)*size);
                 printf("Malloc successfull.\n");
                 state = HASHTABLE_STATE::ON_HOST;
             }else{
@@ -101,16 +109,31 @@ class HashTable{
                     if(ptr){
                         *ptr = &(TablePtr[i]);
                     }
+                    //key相同  但已被删除
+                    if(is_delete_flag[i]){
+                        printf("key %d has been deleted.\n",key.k);
+                        return false;
+                    }
                     return true;
                 };
-
             }
             // printf("<HASHTABLE__INFO>:           in func:contain. Table do not contain key %d  now table size is %d itemnums:%d\n",key.k,Size,ItemNums);
             return false;
         };
 
         __host__ __device__ bool _delete(KeyType key){
-
+            KV* tmp_ptr;
+            //查找待删除的键
+            bool b = contain(key,&tmp_ptr);
+            //存在未被删除的该键
+            if(b){
+                is_delete_flag[tmp_ptr-TablePtr]=1;
+                ItemNums--;
+                // printf("delete %d successful! pos:%d  key:%d\n",key.k,tmp_ptr-TablePtr,TablePtr[tmp_ptr-TablePtr].key.k);
+                return true;
+            }
+            // printf("delete %d failed! pos:%d  \n",key.k,tmp_ptr-TablePtr);
+            return false;
         };
 
         __host__ __device__ int get_load_factor(){
@@ -118,13 +141,14 @@ class HashTable{
         }
 
         __host__ __device__ bool insert(KeyType key, KV* src_ptr){
-
             if(this->get_load_factor()<MAX_LOAD_FACTOR){
                 uint32_t hash=hashKey(key.k);
                 uint32_t i = hash % Size;
-                for(;(TablePtr[i].getKey())->k!=KEY_INVALID;i=(i+1)%Size){
+                //存有键值并且未被删除 则继续
+                for(;((TablePtr[i].getKey())->k!=KEY_INVALID)&&(!is_delete_flag[i]);i=(i+1)%Size){
                 };
                 KV* des_ptr= &TablePtr[i];
+                is_delete_flag[i]=false;
                 des_ptr->copy(src_ptr);
                 ItemNums++;
                 //printf("insert key %d into hashtable pos %d successfull Size %d!\n",key.k,i,Size);
@@ -133,9 +157,10 @@ class HashTable{
                 printf("the hashtable is ON_DEVICE\n");
                 return false;
             }else if(state==HASHTABLE_STATE::ON_HOST){
+                printf("<HASHTABLE__INFO>:           hashtable insert %d calls reshape!\n",key.k);
                 uint32_t hash=hashKey(key.k);
                 uint32_t i = hash % Size;
-                for(;(TablePtr[i].getKey())->k!=KEY_INVALID;i=(i+1)%Size){
+                for(;((TablePtr[i].getKey())->k!=KEY_INVALID)&&(!is_delete_flag[i]);i=(i+1)%Size){
                 };
                 KV* des_ptr= &TablePtr[i];
                 des_ptr->copy(src_ptr);
@@ -169,12 +194,17 @@ class HashTable{
             }
             cudaError_t err;
             KV*  devtable_ptr;
+            bool *dev_is_delete_flag;
             AllocatorPtr->_cudaMalloc((void**) &devtable_ptr,sizeof(KV)*Size);
+            AllocatorPtr->_cudaMalloc((void**) &dev_is_delete_flag,sizeof(bool)*Size);
             err = cudaMemcpy(devtable_ptr, TablePtr, sizeof(KV)*Size, cudaMemcpyHostToDevice);
+            err = cudaMemcpy(dev_is_delete_flag, is_delete_flag, sizeof(bool)*Size, cudaMemcpyHostToDevice);
             cudaCheckError(err);
 
             free(TablePtr);
+            free(is_delete_flag);
             TablePtr=devtable_ptr;
+            is_delete_flag=dev_is_delete_flag;
             state=HASHTABLE_STATE::ON_DEVICE;
             printf("<HASHTABLE__INFO>:           Successful move table to device. Size:%d\n",Size);
             return;
@@ -187,15 +217,20 @@ class HashTable{
             }
             cudaError_t err;
             KV*  hosttable_ptr;
+            bool* host_is_delete_flag;
             hosttable_ptr =  (KV*)malloc(sizeof(KV)*Size);
+            host_is_delete_flag = (bool*)malloc(sizeof(bool)*Size);
             err = cudaMemcpy(hosttable_ptr,TablePtr,sizeof(KV)*Size,cudaMemcpyDeviceToHost);
+            err = cudaMemcpy(host_is_delete_flag,is_delete_flag,sizeof(bool)*Size,cudaMemcpyDeviceToHost);
             // cudaCheckError(err);
             AllocatorPtr->_cudaFree(TablePtr);
+            AllocatorPtr->_cudaFree(is_delete_flag);
 
             TablePtr = hosttable_ptr;
+            is_delete_flag = host_is_delete_flag;
             state=HASHTABLE_STATE::ON_HOST;
 
-            printf("<HASHTABLE__INFO>:           successful move table to host. Size:%d\n",Size);
+            printf("<HASHTABLE__INFO>:           successful move table to host. Size:%d \n",Size);
             return;
         };
 
@@ -214,8 +249,11 @@ class HashTable{
 
                 cudaError_t err;
                 KV* new_table_ptr;
+                bool* new_is_delete_flag;
                 err = AllocatorPtr->_cudaMalloc((void**)&new_table_ptr,sizeof(KV)*new_size);
+                err = AllocatorPtr->_cudaMalloc((void**)&new_is_delete_flag,sizeof(bool)*new_size);
                 err =cudaMemset(new_table_ptr, KEY_INVALID, sizeof(KV)*new_size);
+                err =cudaMemset(new_is_delete_flag, 0, sizeof(bool)*new_size);
                 cudaCheckError(err);        
                 
                 uint32_t* insertCounter;
@@ -224,18 +262,21 @@ class HashTable{
                 cudaCheckError(err);
 
                 int threadblocknums = (Size+THREADS_PER_BLOCK-1)/THREADS_PER_BLOCK;
-                kernel_Reinsert<<<threadblocknums,THREADS_PER_BLOCK>>>(new_table_ptr,new_size,TablePtr,Size,insertCounter);
+                kernel_Reinsert<<<threadblocknums,THREADS_PER_BLOCK>>>(new_table_ptr,new_size,TablePtr,is_delete_flag,Size,insertCounter);
                 cudaDeviceSynchronize();
 
                 uint32_t insertnum;
                 cudaMemcpy(&insertnum,insertCounter,sizeof(uint32_t),cudaMemcpyDeviceToHost);
+                ItemNums=insertnum;
                 printf("<HASHTABLE__INFO>:           reinsert %d keys\n",insertnum);
 
                 Size = new_size;
                 err = AllocatorPtr->_cudaFree(TablePtr);
+                err = AllocatorPtr->_cudaFree(is_delete_flag);
                 cudaCheckError(err);      
                 
                 TablePtr=new_table_ptr;
+                is_delete_flag=new_is_delete_flag;
                 this->move_to_host();
                 printf("<HASHTABLE__INFO>:           in func: reshape_on_host successful reshappe hashtable new size is %d\n",new_size);
             }
@@ -244,6 +285,7 @@ class HashTable{
 
     public:
         KV*  TablePtr;
+        bool* is_delete_flag;
         Gpu_Allocator* AllocatorPtr;
 
         uint32_t ItemNums;
