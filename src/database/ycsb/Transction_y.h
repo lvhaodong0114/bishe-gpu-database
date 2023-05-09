@@ -20,6 +20,9 @@ namespace ycsb{
                 for(int i=0;i<operation_numbers;i++){
                     key[i]=M_Random::random_unsigned(1,context->keys_max);
                     update[i]=M_Random::random_bool(context->WR_rate);
+                    if(update[i]){
+                        _delete[i]=M_Random::random_bool(context->WR_rate);
+                    }
                 }
                 state=TRANSCTION_STATE::READY;
                 return;
@@ -51,6 +54,7 @@ namespace ycsb{
             /*base info*/
             Key key[N];
             bool update[N];
+            bool _delete[N];
             uint16_t epoch;
             uint16_t Tid;
             int operation_numbers;

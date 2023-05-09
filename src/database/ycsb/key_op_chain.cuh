@@ -151,15 +151,15 @@ namespace ycsb{
             }
         };
     
-        template<int t_n>
-        __device__ void exec(Transction<t_n>* transction_ptr,curandState *devState){
+        template<int t_n,typename HASHTABLE>
+        __device__ void exec(Transction<t_n>* transction_ptr,curandState *devState,HASHTABLE* hashtable_ptr){
             //printf("chain_ptr %p\n",this);
             chain_exec<<<1,N>>>(this,transction_ptr,devState);
         };
     };
     
-    template<int Chain_N,int N>
-    __global__ void chain_exec(Key_Op_Chain<Chain_N>* chain_ptr,Transction<N>* transction_ptr,curandState *devState){
+    template<int Chain_N,int N,typename HASHTABLE>
+    __global__ void chain_exec(Key_Op_Chain<Chain_N>* chain_ptr,Transction<N>* transction_ptr,curandState *devState,HASHTABLE* hashtable_ptr){
         uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
         if(idx<N){
             __node* node_ptr = (chain_ptr->node_ptr_chain)[idx];
@@ -168,20 +168,24 @@ namespace ycsb{
             if(node_ptr->k!=-1){
                 for(;node_ptr;node_ptr=node_ptr->next){
                     for(op_list* p=node_ptr->oplist_head;p!=nullptr;p=p->next){
+
                         if(p->op!=-1){
                             int op=p->op;
                             RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[op]);
                             bool update = transction_ptr->update[op];
-        
+
                             auto storage_kv_ptr=&((transction_ptr->storage_ptr)->_kvList[op]);
                             auto src_kv_ptr=_rwkey_ptr->kv_ptr;
         
                             storage_kv_ptr->copy(src_kv_ptr);
                             //printf("transction id:%d chain:%d op:%d done.\n",transction_ptr->Tid,idx,op);
                             if(update){
-                                storage_kv_ptr->value.device_generate(devState);
+                                storage_kv_ptr->value.device_generate(devState);   
+                                src_kv_ptr->copy(storage_kv_ptr);
+                                hashtable_ptr->is_delete_flag[src_kv_ptr-(hashtable_ptr->TablePtr)]=transction_ptr->_delete[op];
                             };
                         }
+
                     }
                 }
             }

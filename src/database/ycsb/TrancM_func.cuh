@@ -219,7 +219,7 @@ __device__ void device_install_without_reorder_optmization(Transction<N>* transc
             auto storage_ptr = &(transction_ptr->storage_ptr->_kvList[i]);
             auto src_ptr = (transction_ptr->read_key_list_head[i]).kv_ptr;
 
-            src_ptr->copy(storage_ptr);
+            src_ptr->copy(storage_ptr);       
         }
         printf("transction:%d successful install!\n",transction_ptr->Tid);
     }
@@ -244,6 +244,8 @@ __global__ void kernel_install_without_reorder_optmization(Transction<N>* device
 
     if(idx<transction_nums){
         Transction<N>* ptr = &device_transction_ptr[idx];
+        // printf("transction idx%d\n",idx);
+
         device_install_without_reorder_optmization(ptr);
     };
     return;

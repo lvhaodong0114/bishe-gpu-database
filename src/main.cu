@@ -4,6 +4,11 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
+
+
+
+// #define OP_PARALLEL
+
 #include "random.h"
 #include  "test.cuh"
 #include "hashTable.cuh"
@@ -45,18 +50,24 @@ int main(){
 
 
 
-//     db.generate_transction(150);
-//     db.transction_manager_show();
+    db.generate_transction(100);
+    db.transction_manager_show();
     
 
-//     Timer::start_timer();
-// //    db.test_one_epoch();
-//     db.test();
+    Timer::start_timer();
+//    db.test_one_epoch();
+    db.test();
 
-//     Timer::end_timer();
-//     Timer::show_during();
+    Timer::end_timer();
+    Timer::show_during();
 
 
+    #ifdef OP_PARALLEL
+        printf("open operation parallel.\n");
+    #else
+        printf("close operation parallel.\n");
+    #endif
+    
 
 
     

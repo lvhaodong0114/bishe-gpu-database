@@ -125,8 +125,11 @@ namespace ycsb{
                 devState = malloc_curand_state(allocator_ptr,blocknum*context.thread_per_block);
                 setup_rand_kernel<<<1,blocknum*context.thread_per_block>>>(devState,context.random_seed);
 
+                #ifndef OP_PARALLEL
                 kernel_execute<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,devState,transction_nums);
-                // opreation_parallel::kernel_execute<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,devState,transction_nums);
+                #else
+                opreation_parallel::kernel_execute<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,devState,transction_nums);
+                #endif
                 cudaDeviceSynchronize();
                 CUDACHECKERROR();
 
@@ -141,24 +144,49 @@ namespace ycsb{
 
                 int blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;
                 
+                #ifndef OP_PARALLEL
                 kernel_commit<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
-                // opreation_parallel::kernel_analyze_dependency<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
+                #else
+                opreation_parallel::kernel_analyze_dependency<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
+                #endif
 
                 cudaDeviceSynchronize();
                 CUDACHECKERROR();
             };
 
-            void Install(){
+            void Install(HashTable<Key,Value>* device_map_ptr){
                 CUDACHECKERROR();
+                int blocknum;
+                
+                #ifdef OP_PARALLEL
+                blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;
+                
+                //申请device端的random state
+                curandState *devState=nullptr;
+                devState = malloc_curand_state(allocator_ptr,blocknum*context.thread_per_block);
+                setup_rand_kernel<<<1,blocknum*context.thread_per_block>>>(devState,context.random_seed);
+                #endif
 
-                int blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;     
+                blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;     
                 if(context.reorder_optmization){
                     kernel_install_with_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
                 }else{
+                    #ifndef OP_PARALLEL
                     kernel_install_without_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
+                    #else
+                    opreation_parallel::_kernel_install_without_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,transction_nums,devState);
+                    #endif
                 }
                 cudaDeviceSynchronize();
                 CUDACHECKERROR();
+
+                #ifdef OP_PARALLEL
+                free_curand_state(allocator_ptr,devState);
+                cudaDeviceSynchronize();
+                CUDACHECKERROR();
+                #endif
+
+
                 return;
             };
 

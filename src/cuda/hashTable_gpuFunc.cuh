@@ -1,7 +1,7 @@
 #ifndef HASHTABLE_GPUFUNC_CUH
-#define HASHTABLE_GPUFUNC_CUH
+#define HASHTABLE_GPUFUNC_CUH   
 
-#include "hashTable.cuh"
+// #include "hashTable.cuh"
 #include "kv.cuh"
 
 template<class KeyType,class ValueType>
@@ -30,6 +30,7 @@ __device__ void insert_into_kvTable(kv<KeyType,ValueType>* table_ptr,uint32_t si
 };
 
 
+
 template<class KeyType,class ValueType>
 __global__ void kernel_Reinsert(kv<KeyType,ValueType>* new_table_ptr,uint32_t new_size,kv<KeyType,ValueType>* old_table_ptr,bool* old_is_delete_flag,uint32_t old_size,uint32_t* insertCounter){
 
@@ -37,6 +38,7 @@ __global__ void kernel_Reinsert(kv<KeyType,ValueType>* new_table_ptr,uint32_t ne
     if(idx >= old_size)
         return;
     if(old_is_delete_flag[idx]){
+
         // atomicAdd(insertCounter,1);
         old_is_delete_flag[idx]=false;
         return;

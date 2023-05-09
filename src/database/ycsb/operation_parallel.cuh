@@ -2,6 +2,7 @@
 #define OPREATION_PARALLEL_CUH
 
 #include "key_op_chain.cuh"
+#include "hashTable_gpuFunc.cuh"
 
 namespace ycsb{
 namespace opreation_parallel{
@@ -26,11 +27,13 @@ namespace opreation_parallel{
             ptr->write_key_nums=0;
 
             device_reserve(device_map_ptr,ptr,devState_now);
-            exec(device_map_ptr,ptr,devState_now);
+            // exec(device_map_ptr,ptr,devState_now);
         }
         return;
     };
 
+
+    //执行到缓存中并实装
     template<class KeyType,class ValueType,int N>
     __device__ void exec(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
         Key_Op_Chain<20>* chain_ptr = (Key_Op_Chain<20>*)malloc(sizeof(Key_Op_Chain<20>));
@@ -40,7 +43,7 @@ namespace opreation_parallel{
             chain_ptr->insert(transction_ptr->key[i].k,i);
         }
         chain_ptr->show(transction_ptr->Tid);
-        chain_exec<<<1,20>>>(chain_ptr,transction_ptr,devState);
+        chain_exec<<<1,20>>>(chain_ptr,transction_ptr,devState,device_map_ptr);
         
         return;
     };
@@ -71,15 +74,20 @@ namespace opreation_parallel{
 
             if(!contain){
                 //for test
+                //先插入并标记已删除，但数据库中已有metadata 可供reserve阶段读取metadata，最后满足install的再实装入数据库
+
                 KeyType _key = transction_ptr->key[idx];
                 kv<KeyType,ValueType> kv;
 
                 kv.key.copy(&_key);
                 kv.value.device_generate(devState);
-                device_map_ptr->insert(_key,&kv);
 
-                bool contain = device_map_ptr->contain(key,&src_kv_ptr);
-                printf("in <kernel_operation_reserve>  transaction_tid:%d  key:%d  contain:%d    kv_ptr:%p\n",transction_ptr->Tid,key.k,contain,src_kv_ptr);
+                insert_atomic(device_map_ptr,&kv,&src_kv_ptr);
+
+                // device_map_ptr->insert(_key,&kv);
+
+                // bool contain = device_map_ptr->contain(key,&src_kv_ptr);
+                printf("!contain\n");
             }
 
             // storage_kv_ptr->copy(src_kv_ptr);
@@ -215,6 +223,34 @@ namespace opreation_parallel{
         };
         return;
     };
+
+    template<class KeyType,class ValueType,int N>
+    __device__ void _device_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
+        if(transction_ptr->waw == true || transction_ptr->raw == true){
+            transction_ptr->state=TRANSCTION_STATE::ABORT;
+            printf("transction:%d abort state%d.\n",transction_ptr->Tid,transction_ptr->state);
+            return;
+        }else{
+            exec(device_map_ptr,transction_ptr,devState);
+            printf("transction:%d successful install!\n",transction_ptr->Tid);
+        }
+        return;
+    };
+
+
+    template<class KeyType,class ValueType,int N>
+    __global__ void _kernel_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,int transction_nums,curandState *devState){
+        uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+        if(idx<transction_nums){
+            Transction<N>* ptr = &transction_ptr[idx];
+            _device_install_without_reorder_optmization(device_map_ptr,ptr,devState);
+        };
+        return;
+    };
+
+
+
 
 };
 };

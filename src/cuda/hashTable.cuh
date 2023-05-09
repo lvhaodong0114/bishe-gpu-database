@@ -300,4 +300,33 @@ __global__ void kernel_show_all_table(HashTable<KeyType,ValueType>* map_ptr){
     map_ptr->show_all_table();
 };
 
+
+template<class KeyType,class ValueType>
+__device__ void insert_atomic(HashTable<KeyType,ValueType>* device_map_ptr,kv<KeyType,ValueType>* kvptr,kv<KeyType,ValueType>** src_ptr,int mode=0){   
+    uint32_t key=kvptr->getKey()->k;
+    auto size = device_map_ptr->Size;
+
+    auto table_ptr = device_map_ptr->TablePtr;
+
+    if(key==KEY_INVALID){
+        return;
+    }
+    uint32_t hash  = hashKey(key);
+    uint32_t i = hash %size;
+    for(;;i=(i+1)%size){
+        /* atomicCAS  arg :: *address,compare,val  */
+        /* old == compare ? val : old */
+        uint32_t old = atomicCAS(&(table_ptr[i].getKey()->k),KEY_INVALID,key);
+        if(old == KEY_INVALID || old==key){
+            /* key was set previously */
+            table_ptr[i].copy(kvptr);
+            device_map_ptr->is_delete_flag[i]=true;
+            *src_ptr=&(table_ptr[i]);
+            printf("fake insert.\n");
+            break;
+        }
+    };
+};
+
+
 #endif
