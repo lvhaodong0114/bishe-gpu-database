@@ -26,8 +26,13 @@ namespace opreation_parallel{
             ptr->read_key_nums=0;
             ptr->write_key_nums=0;
 
+            //预定初始化
             device_reserve(device_map_ptr,ptr,devState_now);
-            // exec(device_map_ptr,ptr,devState_now);
+            //预执行+差错检测+统一RWKEY
+            exec(device_map_ptr,ptr,devState);
+            //todo 对无差错的事务进行预定
+            do_reserve(ptr);
+
         }
         return;
     };
@@ -38,11 +43,11 @@ namespace opreation_parallel{
     __device__ void exec(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
         Key_Op_Chain<20>* chain_ptr = (Key_Op_Chain<20>*)malloc(sizeof(Key_Op_Chain<20>));
         chain_ptr->init();
-        printf("exec %p\n",chain_ptr);
+        // printf("exec %p\n",chain_ptr);
         for(int i=0;i<transction_ptr->operation_numbers;i++){
             chain_ptr->insert(transction_ptr->key[i].k,i);
         }
-        chain_ptr->show(transction_ptr->Tid);
+        // chain_ptr->show(transction_ptr->Tid);
         chain_exec<<<1,20>>>(chain_ptr,transction_ptr,devState,device_map_ptr);
         
         return;
@@ -53,8 +58,10 @@ namespace opreation_parallel{
     template<class KeyType,class ValueType,int N>
     __device__ void device_reserve(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
         int opnumbers = transction_ptr->operation_numbers;
+        //预定初始化
         kernel_operation_reserve<<<1,opnumbers>>>(device_map_ptr,transction_ptr,devState);
         cudaDeviceSynchronize();
+
         return;
     };
 
@@ -70,7 +77,7 @@ namespace opreation_parallel{
             kv<KeyType,ValueType>* src_kv_ptr=nullptr;
 
             bool contain = device_map_ptr->contain(key,&src_kv_ptr);
-            printf("in <kernel_operation_reserve>  transaction_tid:%d  key:%d  contain:%d    kv_ptr:%p\n",transction_ptr->Tid,key.k,contain,src_kv_ptr);
+            printf("in <kernel_operation_reserve>  transaction_tid:%d  key:%d  contain:%d    kv_ptr:%p  \n",transction_ptr->Tid,key.k,contain,src_kv_ptr);
 
             if(!contain){
                 //for test
@@ -87,26 +94,29 @@ namespace opreation_parallel{
                 // device_map_ptr->insert(_key,&kv);
 
                 // bool contain = device_map_ptr->contain(key,&src_kv_ptr);
-                printf("!contain\n");
+                printf("!contain key:%d fake insert pos:%p\n",_key,src_kv_ptr);
             }
 
             // storage_kv_ptr->copy(src_kv_ptr);
 
             if(update){
+                //预定初始化
                 RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[idx]);
                 transction_ptr->read_key_nums++;
                 _rwkey_ptr->set_key_ptr((void*)&(transction_ptr->key[idx]));
                 _rwkey_ptr->set_kv_ptr((void*)src_kv_ptr);
 
-                _rwkey_ptr->set_tid(&((src_kv_ptr->value).metadata));
-                MetadataHelper::reserve_read(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
+                // //预定
+                // _rwkey_ptr->set_tid(&((src_kv_ptr->value).metadata));
+                // MetadataHelper::reserve_read(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
 
                 // //初始化Wkey  直接将写键预定到操作对应的位置，可以防止同时写入错误  由于读写键在后续处理时不具备顺序，所以不必顺序访问
                 _rwkey_ptr =  &(transction_ptr->write_key_list_head[idx]);
                 _rwkey_ptr->set_key_ptr((void*)&(transction_ptr->key[idx]));
                 _rwkey_ptr->set_kv_ptr((void*)src_kv_ptr);
                 _rwkey_ptr->set_tid(&((src_kv_ptr->value).metadata));
-                MetadataHelper::reserve_write(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
+
+                // MetadataHelper::reserve_write(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
             }else{
                 RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[idx]);
                 transction_ptr->read_key_nums++;
@@ -114,8 +124,9 @@ namespace opreation_parallel{
                 _rwkey_ptr->set_kv_ptr((void*)src_kv_ptr);
 
                 _rwkey_ptr->set_tid(&((src_kv_ptr->value).metadata));
-                MetadataHelper::reserve_read(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
+                // MetadataHelper::reserve_read(&((src_kv_ptr->value).metadata), transction_ptr->epoch, transction_ptr->Tid);
             }
+        
         }
     };
 
@@ -181,6 +192,8 @@ namespace opreation_parallel{
             uint16_t wts   = MetadataHelper::get_wts(metadata);
             uint16_t rts   = MetadataHelper::get_rts(metadata);
     
+            // printf("tid:%d,idx%d\n",transction_ptr->Tid,idx);
+
             if(epoch==transction_ptr->epoch && rts<transction_ptr->Tid && rts!=0){
                 printf("in func<device_analyze_dependency>  Transction:%d has war dependency on key %d  is been Transction:%d read reserved.\n",transction_ptr->Tid,(WritekeySet[idx].key_ptr)->k,rts);
                 transction_ptr->war = true;
@@ -191,21 +204,43 @@ namespace opreation_parallel{
                 transction_ptr->waw = true;
             }
             return;
+
         }
 
         if(!transction_ptr->update[idx] && !transction_ptr->raw){
+
+            // printf("tid:%d,idx%d,tid_ptr:%p\n",transction_ptr->Tid,idx,ReadkeySet[idx].tid);
+
+
             uint64_t metadata = *(ReadkeySet[idx].tid);
             uint16_t epoch = MetadataHelper::get_epoch(metadata);
             uint16_t wts   = MetadataHelper::get_wts(metadata);
+
 
             if(epoch==transction_ptr->epoch && wts<transction_ptr->Tid && wts!=0){
                 printf("in func<device_analyze_dependency>  Transction:%d has raw dependency on key %d  is been Transction:%d write reserved.\n",transction_ptr->Tid,(ReadkeySet[idx].key_ptr)->k,wts);
                 transction_ptr->raw = true;
             };
+
         }
 
         return;
     };
+
+    template<int N>
+    __device__ void do_reserve(Transction<N>* ptr){
+        for(int i=0;i<ptr->operation_numbers;i++){
+            if(ptr->update[i]){
+                auto _rwkey_ptr = ptr->write_key_list_head[i];
+                auto src_kv_ptr = _rwkey_ptr.kv_ptr;
+                MetadataHelper::reserve_write(&((src_kv_ptr->value).metadata), ptr->epoch, ptr->Tid);
+            }else{
+                auto _rwkey_ptr = ptr->read_key_list_head[i];
+                auto src_kv_ptr = _rwkey_ptr.kv_ptr;
+                MetadataHelper::reserve_read(&((src_kv_ptr->value).metadata), ptr->epoch, ptr->Tid);
+            };
+        }
+    }
 
     template<int N>
     __global__ void kernel_analyze_dependency(Transction<N>* device_transction_ptr,int transction_nums){
@@ -213,16 +248,42 @@ namespace opreation_parallel{
 
         if(idx<transction_nums){
             Transction<N>* ptr = &device_transction_ptr[idx];
-            // //串行分析+提前中止
-            // _device_analyze_dependency(ptr);
 
-            // //并行分析
-            int opnumbers = ptr->operation_numbers;
-            _device_analyze_dependency_operation_parallel<<<1,opnumbers>>>(ptr);
-            cudaDeviceSynchronize();
+            if(device_transction_ptr[idx].state!=TRANSCTION_STATE::WRONG){
+                // //串行分析+提前中止
+                // _device_analyze_dependency(ptr);
+                // //并行分析
+
+                int opnumbers = ptr->operation_numbers;
+                _device_analyze_dependency_operation_parallel<<<1,opnumbers>>>(ptr);
+                cudaDeviceSynchronize();
+            }
         };
         return;
     };
+
+
+
+    template<class KeyType,class ValueType,int N>
+    __device__ void install(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
+        int operation_numbers=transction_ptr->operation_numbers;
+        kernel_install<<<1,operation_numbers>>>(device_map_ptr,transction_ptr,devState);
+    }
+
+    template<class KeyType,class ValueType,int N>
+    __global__ void kernel_install(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
+        uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+        bool update = transction_ptr->update[idx];
+        if(update){
+            auto storage_kv_ptr = &((transction_ptr->storage_ptr)->_kvList[idx]);
+            auto rwkey_ptr_now =  &(transction_ptr->write_key_list_head[idx]);
+
+            rwkey_ptr_now->kv_ptr->copy(storage_kv_ptr);
+            device_map_ptr->is_delete_flag[ rwkey_ptr_now->kv_ptr - device_map_ptr->TablePtr] = transction_ptr->_delete[idx];
+        }
+
+    }
 
     template<class KeyType,class ValueType,int N>
     __device__ void _device_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
@@ -231,7 +292,7 @@ namespace opreation_parallel{
             printf("transction:%d abort state%d.\n",transction_ptr->Tid,transction_ptr->state);
             return;
         }else{
-            exec(device_map_ptr,transction_ptr,devState);
+            install(device_map_ptr,transction_ptr,devState);
             printf("transction:%d successful install!\n",transction_ptr->Tid);
         }
         return;
@@ -241,8 +302,8 @@ namespace opreation_parallel{
     template<class KeyType,class ValueType,int N>
     __global__ void _kernel_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,int transction_nums,curandState *devState){
         uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-
-        if(idx<transction_nums){
+        
+        if(idx<transction_nums && transction_ptr[idx].state!=TRANSCTION_STATE::WRONG){
             Transction<N>* ptr = &transction_ptr[idx];
             _device_install_without_reorder_optmization(device_map_ptr,ptr,devState);
         };

@@ -138,13 +138,13 @@ namespace ycsb{
                 __node* node_ptr=node_ptr_chain[i];
                 if(node_ptr->k!=-1){
                     for(;node_ptr;){
-                        //printf("key :%d  tid :%d\n",node_ptr->k,tid);
+                        printf("key :%d  tid :%d\n",node_ptr->k,tid);
                         for(op_list* p=node_ptr->oplist_head;p!=nullptr;p=p->next){
                             // if(p->op!=-1){
-                                //printf("op:%d tid :%d\n",p->op,tid);
+                                printf("op:%d tid :%d\n",p->op,tid);
                             // }
                         }
-                        //printf("\n");
+                        printf("\n");
                         node_ptr=node_ptr->next;
                     }
                 }
@@ -158,6 +158,9 @@ namespace ycsb{
         };
     };
     
+
+    //带有差错检测的预执行
+    //将执行结果存入缓存中 并检测事务的正确性
     template<int Chain_N,int N,typename HASHTABLE>
     __global__ void chain_exec(Key_Op_Chain<Chain_N>* chain_ptr,Transction<N>* transction_ptr,curandState *devState,HASHTABLE* hashtable_ptr){
         uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -167,27 +170,108 @@ namespace ycsb{
 
             if(node_ptr->k!=-1){
                 for(;node_ptr;node_ptr=node_ptr->next){
-                    for(op_list* p=node_ptr->oplist_head;p!=nullptr;p=p->next){
+                    int first_op = node_ptr->oplist_head->next->op;
+                    int previous_op = first_op;
 
-                        if(p->op!=-1){
-                            int op=p->op;
-                            RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[op]);
+                    RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[first_op]);
+                    auto src_kv_ptr = _rwkey_ptr->kv_ptr;
+                    auto storage_kv_ptr = &((transction_ptr->storage_ptr)->_kvList[first_op]);
+                    storage_kv_ptr->copy(src_kv_ptr);
+
+                    //第一个操作时，该键是否存在
+                    bool is_delete = hashtable_ptr->is_delete_flag[src_kv_ptr-hashtable_ptr->TablePtr];
+                    if(is_delete){
+                        transction_ptr->state = TRANSCTION_STATE::WRONG;
+
+                        // //for test
+                        // auto tmp_ptr = src_kv_ptr;
+                        // hashtable_ptr->contain(node_ptr->k,&tmp_ptr);
+                        // int tt;
+                        // if(hashtable_ptr->is_delete_flag[tmp_ptr-hashtable_ptr->TablePtr]){
+                        //     tt = 1;
+                        // }else{
+                        //     tt = 0;
+                        // }
+                        // printf("key:%d  pos:%d  delete:%d is_delete:%d\n",node_ptr->k,tmp_ptr,tt,is_delete?1:0);
+                        // src_kv_ptr = _rwkey_ptr->kv_ptr;
+
+                        printf("first transction:%d is wrong. op:%d   key:%d\n",transction_ptr->Tid,first_op,node_ptr->k);
+                        return;
+                    }
+
+                    for(op_list* p=node_ptr->oplist_head;p!=nullptr;p=p->next){
+                        if(p->op>first_op){
+                            int op = p->op;
                             bool update = transction_ptr->update[op];
 
-                            auto storage_kv_ptr=&((transction_ptr->storage_ptr)->_kvList[op]);
-                            auto src_kv_ptr=_rwkey_ptr->kv_ptr;
-        
-                            storage_kv_ptr->copy(src_kv_ptr);
-                            //printf("transction id:%d chain:%d op:%d done.\n",transction_ptr->Tid,idx,op);
+
+
                             if(update){
                                 storage_kv_ptr->value.device_generate(devState);   
-                                src_kv_ptr->copy(storage_kv_ptr);
-                                hashtable_ptr->is_delete_flag[src_kv_ptr-(hashtable_ptr->TablePtr)]=transction_ptr->_delete[op];
-                            };
-                        }
+                                is_delete = transction_ptr->_delete[op];
 
+                                //将所有写键的tid统一到哈希表中同一个位置
+                                RWKey* _rwkey_ptr_now =  &(transction_ptr->write_key_list_head[op]);
+                                _rwkey_ptr_now->set_tid(&((src_kv_ptr->value).metadata));
+                                _rwkey_ptr_now->set_kv_ptr(src_kv_ptr);
+
+                                
+                            }else{
+                                if(is_delete){
+                                    transction_ptr->state = TRANSCTION_STATE::WRONG;
+                                    printf("transction:%d is wrong. op:%d\n",transction_ptr->Tid,op);
+
+                                    return;
+                                }
+                                //将所有读键的tid统一到哈希表中同一个位置
+                                RWKey* _rwkey_ptr_now =  &(transction_ptr->read_key_list_head[op]);
+                                _rwkey_ptr_now->set_tid(&((src_kv_ptr->value).metadata));
+                                _rwkey_ptr_now->set_kv_ptr(src_kv_ptr);
+
+                                //该操作的缓存
+                                storage_kv_ptr = &((transction_ptr->storage_ptr)->_kvList[op]);
+                                //该操作上次结果
+                                auto previous_storage_kv_ptr =  &((transction_ptr->storage_ptr)->_kvList[previous_op]);
+                                storage_kv_ptr->copy(previous_storage_kv_ptr);
+                            }
+                            previous_op = op;
+                        }
                     }
                 }
+
+                // for(;node_ptr;node_ptr=node_ptr->next){
+                //     int first_op = node_ptr->oplist_head->next->op;
+                //     int previous_op = first_op;
+                //     bool is_delete = false;
+                //     for(op_list* p=node_ptr->oplist_head;p!=nullptr;p=p->next){
+                //         if(p->op!=-1){
+                //             int op=p->op;
+                //             RWKey* _rwkey_ptr =  &(transction_ptr->read_key_list_head[first_op]);
+                //             bool update = transction_ptr->update[op];
+
+                            // //当前缓存位置
+                            // auto storage_kv_ptr=&((transction_ptr->storage_ptr)->_kvList[op]);
+                            // auto src_kv_ptr=_rwkey_ptr->kv_ptr;
+        
+                //             auto previous_storage_kv_ptr =&((transction_ptr->storage_ptr)->_kvList[previous_op]);
+                //             storage_kv_ptr->copy(previous_storage_kv_ptr);
+                //             //printf("transction id:%d chain:%d op:%d done.\n",transction_ptr->Tid,idx,op);
+
+
+                //             if(update){
+                //                 storage_kv_ptr->value.device_generate(devState);   
+                //                 is_delete = transction_ptr->_delete[op];
+                //                 // src_kv_ptr->copy(storage_kv_ptr);
+                //                 // hashtable_ptr->is_delete_flag[src_kv_ptr-(hashtable_ptr->TablePtr)]=transction_ptr->_delete[op];
+                //             }
+                //             previous_op = op;
+                //         }
+                //     }
+
+                    
+                
+                
+                // }
             }
         }
     }

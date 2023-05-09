@@ -7,7 +7,8 @@ enum class TRANSCTION_STATE{
     READY = 1,
     EXECUTE = 2,
     COMMIT = 3,
-    ABORT = 4
+    ABORT = 4,
+    WRONG = 5
 };
 
 class Transction_Context{

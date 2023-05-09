@@ -88,7 +88,7 @@ namespace ycsb{
                 for(int i=0;i<transction_nums;i++){
                     printf("<TRANSCTION_MANAGER INFO>:   transction:%d   has operation:%d\n",host_transction_ptr[i].Tid,host_transction_ptr[i].operation_numbers);
                     for(int j=0;j<host_transction_ptr[i].operation_numbers;j++){
-                        printf("op:%d      update:%d\n",host_transction_ptr[i].key[j].k,host_transction_ptr[i].update[j]);
+                        printf("op:%d      update:%d    delete:%s\n",host_transction_ptr[i].key[j].k,host_transction_ptr[i].update[j],host_transction_ptr[i]._delete[j]?"true":"false");
                     };
                 }
                 return;
@@ -172,7 +172,7 @@ namespace ycsb{
                     kernel_install_with_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
                 }else{
                     #ifndef OP_PARALLEL
-                    kernel_install_without_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
+                    kernel_install_without_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,transction_nums);
                     #else
                     opreation_parallel::_kernel_install_without_reorder_optmization<<<blocknum,context.thread_per_block>>>(device_map_ptr,device_transction_ptr,transction_nums,devState);
                     #endif

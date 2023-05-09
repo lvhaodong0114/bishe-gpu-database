@@ -7,7 +7,8 @@
 
 
 
-// #define OP_PARALLEL
+#define OP_PARALLEL
+// #define OPEN_DELETE     
 
 #include "random.h"
 #include  "test.cuh"
@@ -50,7 +51,7 @@ int main(){
 
 
 
-    db.generate_transction(100);
+    db.generate_transction(50);
     db.transction_manager_show();
     
 

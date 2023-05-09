@@ -20,8 +20,11 @@ namespace ycsb{
                 for(int i=0;i<operation_numbers;i++){
                     key[i]=M_Random::random_unsigned(1,context->keys_max);
                     update[i]=M_Random::random_bool(context->WR_rate);
+                    _delete[i]=false;
                     if(update[i]){
+                        #ifdef OPEN_DELETE
                         _delete[i]=M_Random::random_bool(context->WR_rate);
+                        #endif
                     }
                 }
                 state=TRANSCTION_STATE::READY;

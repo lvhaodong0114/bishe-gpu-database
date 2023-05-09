@@ -30,7 +30,15 @@ __device__ void device_execute(HashTable<KeyType,ValueType>* device_map_ptr,Tran
         printf("in <device_Execute>  transaction_tid:%d  key:%d  contain:%d    kv_ptr:%p\n",transction_ptr->Tid,key.k,contain,src_kv_ptr);
 
         if(!contain){
-            continue;    
+            //fake insert
+            KeyType _key = transction_ptr->key[i];
+            kv<KeyType,ValueType> kv;
+           
+            kv.key.copy(&_key);
+            kv.value.device_generate(devState);
+
+            insert_atomic(device_map_ptr,&kv,&src_kv_ptr);
+            // continue;    
         }
         storage_kv_ptr->copy(src_kv_ptr);
         
@@ -204,22 +212,30 @@ __device__ void device_install_with_reorder_optmization(Transction<N>* transctio
     return;
 }
 
-template<int N>
-__device__ void device_install_without_reorder_optmization(Transction<N>* transction_ptr){
+template<typename KeyType,typename ValueType,int N>
+__device__ void device_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr){
     if(transction_ptr->waw == true || transction_ptr->raw == true){
         transction_ptr->state=TRANSCTION_STATE::ABORT;
         printf("transction:%d abort state%d.\n",transction_ptr->Tid,transction_ptr->state);
         return;
     }else{
         for(int i=0;i<transction_ptr->operation_numbers;i++){
-            if(!transction_ptr->update[i]){
-                //读操作 不需要写回
-                continue;
-            }
             auto storage_ptr = &(transction_ptr->storage_ptr->_kvList[i]);
             auto src_ptr = (transction_ptr->read_key_list_head[i]).kv_ptr;
-
-            src_ptr->copy(storage_ptr);       
+            if(!transction_ptr->update[i]){
+                //读操作 不需要写回        
+                //差错检测
+                // if(device_map_ptr->is_delete_flag[device_map_ptr->TablePtr-src_ptr]){
+                //     transction_ptr->state=TRANSCTION_STATE::WRONG;
+                //     printf("transction:%d WRONG!\n",transction_ptr->Tid);
+                //     return; 
+                // }
+                storage_ptr->copy(src_ptr);
+                continue;
+            }
+            //写回 并修改删除标记
+            src_ptr->copy(storage_ptr);    
+            device_map_ptr->is_delete_flag[device_map_ptr->TablePtr-src_ptr] = transction_ptr->_delete[i];
         }
         printf("transction:%d successful install!\n",transction_ptr->Tid);
     }
@@ -238,15 +254,15 @@ __global__ void kernel_install_with_reorder_optmization(Transction<N>* device_tr
     return;
 };
 
-template<int N>
-__global__ void kernel_install_without_reorder_optmization(Transction<N>* device_transction_ptr,int transction_nums){
+template<typename KeyType,typename ValueType,int N>
+__global__ void kernel_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* device_transction_ptr,int transction_nums){
     uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 
     if(idx<transction_nums){
         Transction<N>* ptr = &device_transction_ptr[idx];
         // printf("transction idx%d\n",idx);
 
-        device_install_without_reorder_optmization(ptr);
+        device_install_without_reorder_optmization(device_map_ptr,ptr);
     };
     return;
 };
