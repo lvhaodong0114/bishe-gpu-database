@@ -8,7 +8,7 @@
 
 
 #define OP_PARALLEL
-// #define OPEN_DELETE     
+#define OPEN_DELETE     
 
 #include "random.h"
 #include  "test.cuh"
@@ -38,7 +38,7 @@ int main(){
 
     db.init_db();
     Timer::start_timer();
-    db.init_table(0,0,50000);
+    db.init_table(0,0,200000);
     // db.search_all(0,200000);
     Timer::end_timer();
     Timer::show_during();
@@ -51,7 +51,8 @@ int main(){
 
 
 
-    db.generate_transction(50);
+    db.generate_transction(500);
+    // db.generate_transction(50);
     db.transction_manager_show();
     
 

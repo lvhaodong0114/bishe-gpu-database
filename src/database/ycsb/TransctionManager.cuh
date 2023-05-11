@@ -12,7 +12,7 @@
 
 namespace ycsb{
 
-    template<int N=200>
+    template<int N=500>
     class Transction_Manager{
         public:
             Gpu_Allocator* allocator_ptr;
@@ -116,8 +116,14 @@ namespace ycsb{
                 static bool set=false;
                 if(set==false){
                     cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);
+                    CUDACHECKERROR();
+
                     set=true;
                 }
+
+                // cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128 * (1 << 20));
+                // CUDACHECKERROR();
+
 
                 int blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;
                 //申请device端的random state
@@ -195,7 +201,7 @@ namespace ycsb{
                 context.random_seed++;
 
                 int blocknum=(transction_nums+context.thread_per_block-1)/context.thread_per_block;
-                kernel_collect<<<blocknum,context.thread_per_block>>>(device_transction_ptr,transction_nums);
+                kernel_collect<<<transction_nums,1>>>(device_transction_ptr,transction_nums);
                 cudaDeviceSynchronize();
                 CUDACHECKERROR();
 
@@ -204,7 +210,11 @@ namespace ycsb{
                 uint16_t new_pos=0;
                 for(int i=0;i<transction_nums;i++){
                     if(host_transction_ptr[i].state == TRANSCTION_STATE::ABORT){
-                        memcpy(host_transction_ptr+new_pos,host_transction_ptr+i,sizeof(Transction<N>));
+                        printf("collect %d\n",i);
+
+                        // memcpy(host_transction_ptr+new_pos,host_transction_ptr+i,sizeof(Transction<N>));
+                        (host_transction_ptr+new_pos)->copy(host_transction_ptr+i);
+                        
                         host_transction_ptr[new_pos].reset(new_pos+1);
                         new_pos++;
                     }

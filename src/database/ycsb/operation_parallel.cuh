@@ -20,9 +20,15 @@ namespace opreation_parallel{
             //申请执行时所用内存  
             //https://zhuanlan.zhihu.com/p/525597120
 
-            ptr->storage_ptr =(Storage<N>*)malloc(sizeof(Storage<N+1>));
-            ptr->read_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N+1));
-            ptr->write_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N+1));
+            // malloc style
+            // ptr->storage_ptr =(Storage<N>*)malloc(sizeof(Storage<N+1>));
+            // ptr->read_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N+1));
+            // ptr->write_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N+1));
+
+            //new style
+            ptr->storage_ptr = new Storage<N>;
+            ptr->read_key_list_head=new RWKey[N];
+            ptr->write_key_list_head=new RWKey[N];
             ptr->read_key_nums=0;
             ptr->write_key_nums=0;
 

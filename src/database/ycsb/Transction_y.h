@@ -31,6 +31,20 @@ namespace ycsb{
                 return;
             };
 
+            void copy(Transction<N>* src){
+                for(int i=0;i<N;i++){
+                    this->key[i]=src->key[i];
+                    this->update[i]=src->update[i];
+                    this->_delete[i]=src->_delete[i];
+
+                    this->epoch = src->epoch;
+                    this->Tid = src->Tid;
+                    this->operation_numbers = src->operation_numbers;
+
+                }
+                return;
+            }
+
             void reset(uint16_t tid){
                 Tid=tid;
                 raw=false;

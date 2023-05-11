@@ -115,11 +115,19 @@ __global__ void kernel_execute(HashTable<KeyType,ValueType>* device_map_ptr,Tran
         //申请执行时所用内存  
         //https://zhuanlan.zhihu.com/p/525597120
 
-        ptr->storage_ptr =(Storage<N>*)malloc(sizeof(Storage<N>));
-        ptr->read_key_list_head=(RWKey*)malloc(sizeof(RWKey)*N);
-        ptr->write_key_list_head=(RWKey*)malloc(sizeof(RWKey)*N);
+        //malloc style
+        // ptr->storage_ptr =(Storage<N>*)malloc(sizeof(Storage<N>));
+        // ptr->read_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N));
+        // ptr->write_key_list_head=(RWKey*)malloc(sizeof(RWKey)*(N));
+
+        //new style
+        ptr->storage_ptr = new Storage<N>;
+        ptr->read_key_list_head=new RWKey[N];
+        ptr->write_key_list_head=new RWKey[N];
+
         ptr->read_key_nums=0;
         ptr->write_key_nums=0;
+        // printf("sizeof storage:%d",sizeof(ptr->storage_ptr));
 
         device_execute(device_map_ptr,ptr,devState_now);
         device_reserve(device_map_ptr,ptr);
@@ -276,11 +284,24 @@ __global__ void kernel_collect(Transction<N>* device_transction_ptr,int transcti
     if(idx<transction_nums){
         //当前线程所要处理的事务指针
         Transction<N>* ptr = &device_transction_ptr[idx];
-                
+        
+
         //释放执行时所用内存  
-        free(ptr->storage_ptr);
-        free(ptr->read_key_list_head);
-        free(ptr->write_key_list_head);
+        // free(ptr->storage_ptr);
+        // free(ptr->read_key_list_head);
+        // free(ptr->write_key_list_head);
+
+        // printf("idx:%d %p %p %p %d %d\n",idx,ptr->storage_ptr,ptr->read_key_list_head,ptr->write_key_list_head,ptr->read_key_nums,ptr->write_key_nums);
+
+
+        delete ptr->storage_ptr;
+
+        // //bug to fix : if delete them will report an illegal memory access was encountered
+        // delete[] ptr->read_key_list_head;
+        // delete[] ptr->write_key_list_head;
+
+        // printf("idx:%d %p %p %p %d %d\n",idx,ptr->storage_ptr,ptr->read_key_list_head,ptr->write_key_list_head,ptr->read_key_nums,ptr->write_key_nums);
+
 
         ptr->storage_ptr=nullptr;
         ptr->read_key_list_head=nullptr;
