@@ -7,6 +7,7 @@
 #include "cudarand.cuh"
 #include "Transction_y.h"
 #include "TrancM_func.cuh"
+#include "TranscM_func_cpu.h"
 #include "operation_parallel.cuh"
 
 
@@ -113,13 +114,13 @@ namespace ycsb{
             }
 
             void Execute(HashTable<Key,Value>* device_map_ptr){
-                static bool set=false;
-                if(set==false){
-                    cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);
-                    CUDACHECKERROR();
+                // static bool set=false;
+                // if(set==false){
+                //     cudaDeviceSetLimit(cudaLimitMallocHeapSize, 100*1024*1024);
+                //     CUDACHECKERROR();
 
-                    set=true;
-                }
+                //     set=true;
+                // }
 
                 // cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128 * (1 << 20));
                 // CUDACHECKERROR();
@@ -207,10 +208,55 @@ namespace ycsb{
 
                 cudaMemcpy(host_transction_ptr,device_transction_ptr,sizeof(Transction<N>) * N,cudaMemcpyDeviceToHost);
 
+
+
                 uint16_t new_pos=0;
                 for(int i=0;i<transction_nums;i++){
                     if(host_transction_ptr[i].state == TRANSCTION_STATE::ABORT){
-                        printf("collect %d\n",i);
+
+                        // memcpy(host_transction_ptr+new_pos,host_transction_ptr+i,sizeof(Transction<N>));
+                        (host_transction_ptr+new_pos)->copy(host_transction_ptr+i);
+                        host_transction_ptr[new_pos].reset(new_pos+1);
+                        new_pos++;
+                    }
+                }
+                transction_nums=new_pos;
+
+
+                cudaMemcpy(device_transction_ptr,host_transction_ptr,sizeof(Transction<N>) * N,cudaMemcpyHostToDevice);
+            };
+
+
+
+            // cpu version
+
+            void Execute_cpu(HashTable<Key,Value>* map_ptr){
+                cpu::execute_cpu(map_ptr,host_transction_ptr,transction_nums);
+                return;
+            };
+
+            void Commit_cpu(){
+                cpu::analyze_cpu(host_transction_ptr,transction_nums);
+                // printf("COMMIT.\n");
+                return;
+            };
+
+            void Install_cpu(HashTable<Key,Value>* map_ptr){
+                cpu::install_cpu(map_ptr,host_transction_ptr,transction_nums);
+                return;
+            };
+
+            void Collect_cpu(){
+                context.epoch_now++;
+                context.random_seed++;
+
+                cpu::collect_cpu(host_transction_ptr,transction_nums);
+
+
+
+                uint16_t new_pos=0;
+                for(int i=0;i<transction_nums;i++){
+                    if(host_transction_ptr[i].state == TRANSCTION_STATE::ABORT){
 
                         // memcpy(host_transction_ptr+new_pos,host_transction_ptr+i,sizeof(Transction<N>));
                         (host_transction_ptr+new_pos)->copy(host_transction_ptr+i);
@@ -220,6 +266,7 @@ namespace ycsb{
                     }
                 }
                 transction_nums=new_pos;
+                return;
             };
     };
 

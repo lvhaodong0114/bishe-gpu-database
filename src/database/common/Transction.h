@@ -30,7 +30,7 @@ class Transction_Context{
             this->reorder_optmization = false;
             this->epoch_now = 0;
             this->epoch_max = 5;
-            this->thread_per_block =16;
+            this->thread_per_block =1;
         };
 };
 

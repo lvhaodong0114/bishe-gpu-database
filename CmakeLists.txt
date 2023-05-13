@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.1)
-set (CMAKE_CXX_STANDARD 14)
+
+# set (CMAKE_CXX_STANDARD 23)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
 
 project(gpu-database LANGUAGES CXX CUDA)
 find_package(CUDA REQUIRED)
 # set(CUDA_NVCC_FLAGS  -arch=compute_30;-rdc=true)
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-rdc=true;-lcudadevrt")
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-rdc=true;-lcudadevrt ;-G; -g;-std=c++20")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++20")
+
 
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 # set_target_properties(gpu-database PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
@@ -17,7 +26,7 @@ message(${CMAKE_BUILD_TYPE} )
 
 
 file(GLOB srcfiles 
-${PROJECT_SOURCE_DIR}/src/*.h   
+# ${PROJECT_SOURCE_DIR}/src/*.h   
 ${PROJECT_SOURCE_DIR}/src/*.cu
 )
 
@@ -25,9 +34,17 @@ ${PROJECT_SOURCE_DIR}/src/*.cu
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/database)
 include_directories(${PROJECT_SOURCE_DIR}/src/database/common)
+include_directories(${PROJECT_SOURCE_DIR}/src/database/setting)
 include_directories(${PROJECT_SOURCE_DIR}/src/cuda)
 
 
 add_executable(gpu-database ${srcfiles})
 message(${srcfiles})
+
+
+# if(MSVC)
+#     # Visual Studio 编译器选项
+#     target_compile_options(gpu-database PRIVATE /std:c++20)
+# endif()
+# target_link_libraries(gpu-database atomic)
 # target_link_libraries(gpu_aria PUBLIC stdgpu::stdgpu)

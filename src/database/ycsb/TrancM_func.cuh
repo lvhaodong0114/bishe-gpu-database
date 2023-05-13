@@ -221,7 +221,7 @@ __device__ void device_install_with_reorder_optmization(Transction<N>* transctio
 }
 
 template<typename KeyType,typename ValueType,int N>
-__device__ void device_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr){
+__device__ __host__ void device_install_without_reorder_optmization(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr){
     if(transction_ptr->waw == true || transction_ptr->raw == true){
         transction_ptr->state=TRANSCTION_STATE::ABORT;
         printf("transction:%d abort state%d.\n",transction_ptr->Tid,transction_ptr->state);
@@ -243,7 +243,7 @@ __device__ void device_install_without_reorder_optmization(HashTable<KeyType,Val
             }
             //写回 并修改删除标记
             src_ptr->copy(storage_ptr);    
-            device_map_ptr->is_delete_flag[device_map_ptr->TablePtr-src_ptr] = transction_ptr->_delete[i];
+            device_map_ptr->is_delete_flag[src_ptr-device_map_ptr->TablePtr] = transction_ptr->_delete[i];
         }
         printf("transction:%d successful install!\n",transction_ptr->Tid);
     }

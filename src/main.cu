@@ -4,11 +4,8 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-
-
-
-#define OP_PARALLEL
-#define OPEN_DELETE     
+//实验设定
+#include "MARCO_define.h"
 
 #include "random.h"
 #include  "test.cuh"
@@ -16,7 +13,9 @@
 #include "ycsb/db.h"
 #include "Timer.h"
 #include "cudarand.cuh"
+#include "info.h"
 
+//全局初始化
 std::default_random_engine M_Random::e;
 bool  M_Random::is_init = false;
 bool Timer::start = false;
@@ -25,13 +24,15 @@ std::chrono::time_point<std::chrono::high_resolution_clock> Timer::start_t;
 std::chrono::time_point<std::chrono::high_resolution_clock> Timer::end_t;
 
 
-
-
-
 int main(){
 
     //将 buffer 指定为 NULL，关闭标准输出缓冲  防止输出到log文件中乱序
     setbuf(stdout,NULL);
+
+
+    //设置cuda设备堆大小
+    cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128 * (1 << 20));
+    CUDACHECKERROR();
 
 
     ycsb::DB db; 
@@ -51,27 +52,20 @@ int main(){
 
 
 
-    db.generate_transction(500);
+
+    db.generate_transction(100);
     // db.generate_transction(50);
-    db.transction_manager_show();
+    // db.transction_manager_show();
     
 
     Timer::start_timer();
-//    db.test_one_epoch();
-    db.test();
+
+    test_with_MARCO(db);
 
     Timer::end_timer();
     Timer::show_during();
 
+    __INFO();
 
-    #ifdef OP_PARALLEL
-        printf("open operation parallel.\n");
-    #else
-        printf("close operation parallel.\n");
-    #endif
-    
-
-
-    
     return 0;
 };

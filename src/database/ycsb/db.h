@@ -109,26 +109,67 @@ class DB  :public database{
         };
 
         void test(){
-            while(transction_manager_ptr->transction_nums!=0){
-                printf("<DB INFO>:                   remaining %d transctions ,start %d.\n",transction_manager_ptr->transction_nums,transction_manager_ptr->context.epoch_now);
-                test_one_epoch();
-            };
+            // while(transction_manager_ptr->transction_nums!=0){
+            //     #ifdef OPEN_GPU
+            //     printf("<DB INFO>:                   remaining %d transctions ,start %d.\n",transction_manager_ptr->transction_nums,transction_manager_ptr->context.epoch_now);
+            //     test_one_epoch();
+            //     #else
+            //     printf("<DB INFO>:                   remaining %d transctions ,start %d.\n",transction_manager_ptr->transction_nums,transction_manager_ptr->context.epoch_now);
+            //     test_one_epoch_on_cpu();
+            //     #endif
+            // };
+
+
+            #ifdef OPEN_GPU
+                get_map_ptr();
+                while(transction_manager_ptr->transction_nums!=0){
+                    printf("<DB INFO>:                   remaining %d transctions ,start %d.\n",transction_manager_ptr->transction_nums,transction_manager_ptr->context.epoch_now);
+                    test_one_epoch();
+                    this->transction_manager_show();
+                };
+                free_map_ptr();
+            #else
+                while(transction_manager_ptr->transction_nums!=0){
+                    printf("<DB INFO>:                   remaining %d transctions ,start %d.\n",transction_manager_ptr->transction_nums,transction_manager_ptr->context.epoch_now);
+                    test_one_epoch_on_cpu();
+                    this->transction_manager_show();
+
+                };
+            #endif
+            
         }
 
         void test_one_epoch(){
-            if(device_map_ptr==nullptr){
-                get_map_ptr();
-                printf("<DB INFO>:                   successful get map ptr.\n");
+
+
+            // if(device_map_ptr==nullptr){
+                // get_map_ptr();
+
+                printf("<DB INFO>:                   successful get device map ptr.\n");
                 // transction_manager_ptr->show_all_keys_on_device(map_ptr,device_map_ptr);                
                 transction_manager_ptr->Execute(device_map_ptr);
                 transction_manager_ptr->Commit();
                 transction_manager_ptr->Install(device_map_ptr);
                 transction_manager_ptr->Collect();
-                free_map_ptr();
+
+                // free_map_ptr();
                 return;
-            }
-            printf("<DB INFO>:                   device_map_ptr is not nullptr.\n");
+            // }
+
+            // printf("<DB INFO>:                   device_map_ptr is not nullptr.\n");
             return;
+        };
+
+        void test_one_epoch_on_cpu(){
+            map_ptr = (HashTable<Key,Value>*)this->table_vec[0][0]->get_map_ptr();
+
+            printf("<DB INFO>:                   successful get map ptr.\n");
+            transction_manager_ptr->Execute_cpu(map_ptr);
+            transction_manager_ptr->Commit_cpu();            
+            transction_manager_ptr->Install_cpu(map_ptr);
+            transction_manager_ptr->Collect_cpu();
+            return;
+
         };
 
     private:

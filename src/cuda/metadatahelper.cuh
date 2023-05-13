@@ -4,32 +4,33 @@
 
 #include "stdint.h"
 
+#include <atomic>
 
 class MetadataHelper{
 
 
 public:
-    __device__ static uint64_t set_epoch(uint64_t value, const uint64_t epoch){
+    __device__ __host__ static uint64_t set_epoch(uint64_t value, const uint64_t epoch){
         return (value & (~(EPOCH_MASK << EPOCH_OFFSET))) | (epoch << EPOCH_OFFSET);
     };
 
-    __device__ static uint64_t get_epoch(uint64_t value){   
+    __device__ __host__ static uint64_t get_epoch(uint64_t value){   
         return  (value >> EPOCH_OFFSET) & EPOCH_MASK;
     };
 
-    __device__ static uint64_t set_rts(uint64_t value , const uint64_t rts){
+    __device__ __host__ static uint64_t set_rts(uint64_t value , const uint64_t rts){
         return (value & (~(RTS_MASK << RTS_OFFSET))) | (rts << RTS_OFFSET);
     };
 
-    __device__ static uint64_t get_rts(uint64_t value){
+    __device__ __host__ static uint64_t get_rts(uint64_t value){
         return (value >> RTS_OFFSET) & RTS_MASK;
     };
 
-    __device__ static uint64_t set_wts(uint64_t value,const  uint64_t wts){
+    __device__ __host__ static uint64_t set_wts(uint64_t value,const  uint64_t wts){
         return (value & (~(WTS_MASK << WTS_OFFSET))) | (wts << WTS_OFFSET);
     };
 
-    __device__ static uint64_t get_wts(uint64_t value){
+    __device__ __host__ static uint64_t get_wts(uint64_t value){
         return (value >> WTS_OFFSET) & WTS_MASK;
     };
 
@@ -50,6 +51,7 @@ public:
                 //比较事务tid
                 if(old_rts < Tid && old_rts!=0){
                     printf("in device function:reserve_read epoch:%d  Tid:%d  failed reserve read! old rts  is %d\n",epoch,Tid,old_rts);
+
                     //旧的预定id较小 则这次预定失败
                     return false;
                 }
@@ -89,6 +91,7 @@ public:
         return true;
     };
 
+    
 
 private:
     /*

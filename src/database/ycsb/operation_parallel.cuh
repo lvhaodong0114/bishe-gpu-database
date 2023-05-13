@@ -47,14 +47,14 @@ namespace opreation_parallel{
     //执行到缓存中并实装
     template<class KeyType,class ValueType,int N>
     __device__ void exec(HashTable<KeyType,ValueType>* device_map_ptr,Transction<N>* transction_ptr,curandState *devState){
-        Key_Op_Chain<20>* chain_ptr = (Key_Op_Chain<20>*)malloc(sizeof(Key_Op_Chain<20>));
+        Key_Op_Chain<32>* chain_ptr = (Key_Op_Chain<32>*)malloc(sizeof(Key_Op_Chain<32>));
         chain_ptr->init();
         // printf("exec %p\n",chain_ptr);
         for(int i=0;i<transction_ptr->operation_numbers;i++){
             chain_ptr->insert(transction_ptr->key[i].k,i);
         }
         // chain_ptr->show(transction_ptr->Tid);
-        chain_exec<<<1,20>>>(chain_ptr,transction_ptr,devState,device_map_ptr);
+        chain_exec<<<32,1>>>(chain_ptr,transction_ptr,devState,device_map_ptr);
         
         return;
     };
